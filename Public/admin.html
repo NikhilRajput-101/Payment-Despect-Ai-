@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    function enforceAuth() {
+      const user = localStorage.getItem("user");
+      if (!user) {
+        window.location.replace("/login.html");
+      }
+    }
+
+    // Check immediately when page loads
+    enforceAuth();
+
+    // Check again if user clicks browser Back button (bfcache restore)
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) {
+        enforceAuth();
+      }
+    });
+  </script>
+  <meta charset="UTF-8">
+  <meta charset="UTF-8">
+  <title>Merchant Admin Portal — Dispute AI Copilot</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px; }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 16px; margin-bottom: 24px; }
+    .header h2 { font-size: 22px; font-weight: 700; }
+    .header-links { display: flex; gap: 12px; align-items: center; }
+    .btn-link { background: #334155; color: #f8fafc; border: none; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-store { background: #10b981; color: white; }
+    
+    .table-container { background: #1e293b; border-radius: 8px; border: 1px solid #334155; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
+    th { background: #0b1329; padding: 14px 18px; color: #94a3b8; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+    td { padding: 14px 18px; border-top: 1px solid #334155; }
+    tr:hover { background: #182234; }
+    
+    .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .badge-review { background: #064e3b; color: #34d399; }
+    .badge-waiting { background: #854d0e; color: #facc15; }
+    .badge-fight { background: #0284c7; color: white; }
+    .badge-accept { background: #dc2626; color: white; }
+
+    .btn-chat { background: #7c3aed; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px; }
+    .btn-chat:hover { background: #6d28d9; }
+
+    /* Floating Chat Drawer */
+    .copilot-bubble-btn { position: fixed; bottom: 24px; right: 24px; width: 58px; height: 58px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; font-size: 26px; border: none; cursor: pointer; box-shadow: 0 8px 24px rgba(37,99,235,0.4); z-index: 1000; }
+    .copilot-panel { position: fixed; bottom: 92px; right: 24px; width: 440px; height: 600px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 1000; overflow: hidden; }
+    .copilot-header { background: #0f172a; padding: 14px 18px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+    .copilot-header h4 { font-size: 14px; font-weight: 700; }
+    .copilot-close { background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; }
+    .copilot-body { flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; font-size: 13px; line-height: 1.5; }
+    
+    .chat-msg { padding: 10px 14px; border-radius: 8px; max-width: 88%; }
+    .chat-msg.copilot { background: #0f172a; border-left: 3px solid #38bdf8; align-self: flex-start; }
+    .chat-msg.user { background: #2563eb; color: white; align-self: flex-end; }
+    .chat-msg.pivot { background: #450a0a; border-left: 3px solid #ef4444; color: #fecaca; }
+
+    .chat-actions { padding: 10px 14px; background: #0f172a; border-top: 1px solid #334155; display: flex; gap: 8px; }
+    .btn-act { flex: 1; padding: 8px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; font-size: 12px; }
+    .btn-act.fight { background: #059669; color: white; }
+    .btn-act.refund { background: #dc2626; color: white; }
+
+    .chat-input-bar { display: flex; padding: 10px; background: #0b1329; border-top: 1px solid #334155; gap: 8px; }
+    .chat-input-bar input { flex: 1; padding: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: white; font-size: 13px; outline: none; }
+    .chat-input-bar button { background: #2563eb; color: white; border: none; padding: 0 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h2>Merchant Disputes Operations</h2>
+      <p style="color:#94a3b8; font-size:13px; margin-top:4px;">Gemini 3.8 Flash Dispute Copilot & Fraud Defense</p>
+    </div>
+    <div class="header-links">
+      <a href="/" class="btn-link btn-store">🛒 Storefront</a>
+      <button class="btn-link" onclick="logout()">Sign Out</button>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Case ID</th>
+          <th>Reason</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th>Courier / Tracking</th>
+          <th>AI Strategy</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="7" style="text-align:center; color:#94a3b8;">Loading disputes...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <button class="copilot-bubble-btn" onclick="toggleDrawer()">🤖</button>
+
+  <!-- Interactive Copilot Chatbot Panel -->
+  <div class="copilot-panel" id="copilotPanel">
+    <div class="copilot-header">
+      <h4>🤖 Dispute AI Copilot</h4>
+      <button class="copilot-close" onclick="toggleDrawer()">✕</button>
+    </div>
+    <div class="copilot-body" id="chatBox">
+      <div class="chat-msg copilot">
+        👋 Hi! Click <strong>"Chat with AI"</strong> on any case, or explain extra details (e.g. wrong item sent, empty box) to adapt the strategy.
+      </div>
+    </div>
+    <div class="chat-actions" id="chatActions" style="display: none;">
+      <button class="btn-act fight" id="btnSubmitEvidence">Approve & Submit Evidence</button>
+      <button class="btn-act refund" id="btnRefundClaim">Accept Claim (Refund)</button>
+    </div>
+    <form class="chat-input-bar" id="chatForm">
+      <input type="text" id="userInput" placeholder="Ask AI or explain context..." required autocomplete="off" />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+  <script>
+    let activeDisputes = [];
+    let selectedId = null;
+    let history = [];
+
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    if (!user || user.role !== "admin") window.location.href = "/login.html";
+
+    function logout() {
+      localStorage.removeItem("user");
+      window.location.href = "/login.html";
+    }
+
+    function toggleDrawer() {
+      const p = document.getElementById("copilotPanel");
+      p.style.display = p.style.display === "flex" ? "none" : "flex";
+    }
+
+    async function loadDisputes() {
+      const res = await fetch("/api/disputes");
+      const json = await res.json();
+      activeDisputes = json.data || [];
+      renderTable();
+      if (activeDisputes.length > 0 && !selectedId) {
+        openChatForCase(activeDisputes[0].dispute_id);
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById("tableBody");
+      if (activeDisputes.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#64748b;">No active disputes.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = activeDisputes.map(d => `
+        <tr>
+          <td><strong>${d.dispute_id}</strong></td>
+          <td>${d.reason}</td>
+          <td>$${d.dispute_amount} USD</td>
+          <td><span class="badge ${d.status === 'UNDER_REVIEW' ? 'badge-review' : 'badge-waiting'}">${d.status}</span></td>
+          <td>${d.carrier || 'FEDEX'} (${d.tracking_number || 'N/A'})</td>
+          <td><span class="badge ${d.strategy === 'ACCEPT' ? 'badge-accept' : 'badge-fight'}">${d.strategy || 'FIGHT'}</span></td>
+          <td><button class="btn-chat" onclick="openChatForCase('${d.dispute_id}')">💬 Chat with AI</button></td>
+        </tr>
+      `).join("");
+    }
+
+    function append(sender, text, isPivot = false) {
+      const b = document.getElementById("chatBox");
+      const d = document.createElement("div");
+      d.className = `chat-msg ${sender} ${isPivot ? 'pivot' : ''}`;
+      d.innerHTML = text;
+      b.appendChild(d);
+      b.scrollTop = b.scrollHeight;
+      history.push({ sender, text });
+    }
+    async function logout() {
+  localStorage.clear();
+  sessionStorage.clear();
+  try {
+    await fetch("/api/logout", { method: "POST" });
+  } catch (e) {}
+  window.location.replace("/login.html");
+}
+    function openChatForCase(id) {
+      selectedId = id;
+      const d = activeDisputes.find(x => x.dispute_id === id);
+      document.getElementById("copilotPanel").style.display = "flex";
+      document.getElementById("chatActions").style.display = "flex";
+
+      document.getElementById("btnSubmitEvidence").onclick = () => submitEvidence(id);
+      document.getElementById("btnRefundClaim").onclick = () => acceptClaim(id);
+
+      append("copilot", `
+        📁 <strong>Active Case:</strong> ${id}<br>
+        <strong>Reason:</strong> ${d.reason} | <strong>Amount:</strong> $${d.dispute_amount} USD<br>
+        <strong>Current Strategy:</strong> <span class="badge ${d.strategy === 'ACCEPT' ? 'badge-accept' : 'badge-fight'}">${d.strategy || 'FIGHT'}</span><br><br>
+        <em>If you made a packing mistake or have extra customer details, tell me below!</em>
+      `);
+    }
+
+    // document.getElementById("chatForm").addEventListener("submit", async (e) => {
+    //   e.preventDefault();
+    //   const inp = document.getElementById("userInput");
+    //   const txt = inp.value.trim();
+    //   if (!txt || !selectedId) return;
+
+    //   append("user", txt);
+    //   inp.value = "";
+
+    //   try {
+    //     const res = await fetch(`/api/disputes/${selectedId}/chat`, {
+    //       method: "POST",
+    //       headers: { "Content-Type": "application/json" },
+    //       body: JSON.stringify({ message: txt, history })
+    //     });
+    //     const data = await res.json();
+    //     if (data.success) {
+    //       const isPivot = data.updated_strategy === "ACCEPT";
+    //       append("copilot", `
+    //         <strong>Guidance:</strong> ${data.reply}<br><br>
+    //         <strong>Adjusted Strategy:</strong> <span class="badge ${data.updated_strategy === 'ACCEPT' ? 'badge-accept' : 'badge-fight'}">${data.updated_strategy}</span>
+    //       `, isPivot);
+    //     } else {
+    //       append("copilot", "Error: " + data.error);
+    //     }
+    //   } catch (err) {
+    //     append("copilot", "Server connection error.");
+    //   }
+    // });
+    document.getElementById("chatForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const inp = document.getElementById("userInput");
+  const sendBtn = e.target.querySelector("button");
+  const txt = inp.value.trim();
+  if (!txt || !selectedId) return;
+
+  // Append user message immediately
+  append("user", txt);
+  inp.value = "";
+  inp.disabled = true;
+  sendBtn.disabled = true;
+  sendBtn.textContent = "•••";
+
+  // Temporary thinking bubble
+  const box = document.getElementById("chatBox");
+  const loadingDiv = document.createElement("div");
+  loadingDiv.id = "copilotLoading";
+  loadingDiv.className = "chat-msg copilot";
+  loadingDiv.innerHTML = "<em>Analyzing case context & drafting guidance...</em>";
+  box.appendChild(loadingDiv);
+  box.scrollTop = box.scrollHeight;
+
+  try {
+    const res = await fetch(`/api/disputes/${selectedId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: txt, history })
+    });
+    const data = await res.json();
+
+    // Remove loading indicator
+    document.getElementById("copilotLoading")?.remove();
+
+    if (data.success) {
+      const isPivot = data.updated_strategy === "ACCEPT";
+      append("copilot", `
+        <strong>Guidance:</strong> ${data.reply}<br><br>
+        <strong>Adjusted Strategy:</strong> <span class="badge ${data.updated_strategy === 'ACCEPT' ? 'badge-accept' : 'badge-fight'}">${data.updated_strategy}</span>
+      `, isPivot);
+    } else {
+      append("copilot", "Error: " + data.error);
+    }
+  } catch (err) {
+    document.getElementById("copilotLoading")?.remove();
+    append("copilot", "Server connection error.");
+  } finally {
+    inp.disabled = false;
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Send";
+    inp.focus();
+  }
+});
+
+    async function submitEvidence(id) {
+      if(!confirm("Submit defense to PayPal?")) return;
+      const res = await fetch(`/api/disputes/${id}/submit-defense`, { method: "POST" });
+      const data = await res.json();
+      append("copilot", `✔ ${data.message || data.error}`);
+      loadDisputes();
+    }
+
+    async function acceptClaim(id) {
+      if(!confirm("Accept dispute and refund buyer?")) return;
+      const res = await fetch(`/api/disputes/${id}/accept-claim`, { method: "POST" });
+      const data = await res.json();
+      append("copilot", `✔ ${data.message || data.error}`);
+      loadDisputes();
+    }
+
+    loadDisputes();
+  </script>
+</body>
+</html>

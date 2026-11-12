@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    function enforceAuth() {
+      const user = localStorage.getItem("user");
+      if (!user) {
+        window.location.replace("/login.html");
+      }
+    }
+
+    // Check immediately when page loads
+    enforceAuth();
+
+    // Check again if user clicks browser Back button (bfcache restore)
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) {
+        enforceAuth();
+      }
+    });
+  </script>
+  <meta charset="UTF-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevStore — Hardware Catalog & Orders</title>
+  <script src="https://www.paypal.com/sdk/js?client-id=sb&currency=USD"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 20px 32px; }
+
+    /* Top Nav */
+    .navbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 16px; margin-bottom: 24px; }
+    .brand { font-size: 20px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+    .user-info { display: flex; align-items: center; gap: 14px; font-size: 13px; color: #94a3b8; }
+    .user-info strong { color: #f8fafc; }
+    .btn-logout { background: #334155; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .btn-logout:hover { background: #475569; }
+
+    /* Layout */
+    .main-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+
+    /* Products Grid */
+    .section-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; color: #e2e8f0; }
+    .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .product-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; }
+    .p-icon { font-size: 32px; margin-bottom: 8px; }
+    .p-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .p-desc { font-size: 12px; color: #94a3b8; line-height: 1.4; margin-bottom: 12px; flex-grow: 1; }
+    .p-footer { display: flex; justify-content: space-between; align-items: center; }
+    .p-price { font-size: 15px; font-weight: 800; color: #38bdf8; }
+    .btn-add { background: #10b981; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-add:hover { background: #059669; }
+
+    /* Right Column (Cart + Orders) */
+    .side-panel { display: flex; flex-direction: column; gap: 20px; }
+    .card-panel { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 18px; }
+    
+    /* Cart */
+    .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #334155; font-size: 13px; }
+    .cart-total { display: flex; justify-content: space-between; font-weight: bold; margin: 14px 0; font-size: 14px; color: #38bdf8; }
+    #paypal-button-container { margin-top: 10px; }
+
+    /* Orders */
+    .order-item { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 10px; margin-bottom: 8px; font-size: 12px; }
+    .order-status { display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; text-transform: uppercase; margin-top: 4px; }
+    .status-delivered { background: #064e3b; color: #34d399; }
+    .status-transit { background: #854d0e; color: #facc15; }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <div class="brand">🛒 DevStore</div>
+    <div class="user-info">
+      <span>Welcome, <strong id="userName">User</strong> (<span id="userEmail">user@example.com</span>)</span>
+      <button class="btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="main-layout">
+    
+    <!-- LEFT: 6 Products Grid -->
+    <div>
+      <div class="section-title">📦 Available Hardware Catalog</div>
+      <div class="products-grid" id="catalogGrid"></div>
+    </div>
+
+    <!-- RIGHT: Cart & Orders Panel -->
+    <div class="side-panel">
+      
+      <!-- Cart Box -->
+      <div class="card-panel">
+        <div class="section-title">🛒 Your Cart</div>
+        <div id="cartItemsList">
+          <p style="color:#64748b; font-size:13px;">Cart is empty. Add products from the catalog.</p>
+        </div>
+        <div class="cart-total">
+          <span>Total Amount:</span>
+          <span id="cartTotalPrice">$0.00 USD</span>
+        </div>
+        <div id="paypal-button-container"></div>
+      </div>
+
+      <!-- Orders Box -->
+      <div class="card-panel">
+        <div class="section-title">🚚 Your Orders & Tracking</div>
+        <div id="ordersList">
+          <p style="color:#64748b; font-size:13px;">No past orders found.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    if (!user) {
+      window.location.href = "/login.html";
+    } else {
+      document.getElementById("userName").textContent = user.name || "Customer";
+      document.getElementById("userEmail").textContent = user.email || "";
+    }
+
+    function logout() {
+      localStorage.removeItem("user");
+      window.location.href = "/login.html";
+    }
+
+    // 6 Demo Products
+    const catalog = [
+      { id: "P1", name: "Mechanical Gaming Keyboard", icon: "⌨️", price: 5.00, desc: "Tactile Blue Switches with RGB Backlighting." },
+      { id: "P2", name: "Precision Optical Mouse", icon: "🖱️", price: 3.50, desc: "26,000 DPI Sensor, 58g Lightweight Chassis." },
+      { id: "P3", name: "ANC Studio Headphones", icon: "🎧", price: 6.00, desc: "Active Noise Cancellation with 40h Battery." },
+      { id: "P4", name: "4K Pro Streaming Webcam", icon: "📷", price: 4.50, desc: "Ultra HD 60fps with Dual Stereo Mics." },
+      { id: "P5", name: "Aluminum Laptop Riser", icon: "💻", price: 2.50, desc: "Ergonomic Heat Dissipation Dual-Axis Stand." },
+      { id: "P6", name: "USB-C Multiport Dock", icon: "🔌", price: 5.50, desc: "100W PD charging with Dual HDMI & 1Gbps LAN." }
+    ];
+
+    let cart = [];
+
+    // Render Catalog
+    const grid = document.getElementById("catalogGrid");
+    grid.innerHTML = catalog.map(p => `
+      <div class="product-card">
+        <div>
+          <div class="p-icon">${p.icon}</div>
+          <div class="p-title">${p.name}</div>
+          <div class="p-desc">${p.desc}</div>
+        </div>
+        <div class="p-footer">
+          <span class="p-price">$${p.price.toFixed(2)}</span>
+          <button class="btn-add" onclick="addToCart('${p.id}')">+ Add</button>
+        </div>
+      </div>
+    `).join("");
+
+    function addToCart(id) {
+      const item = catalog.find(p => p.id === id);
+      cart.push(item);
+      renderCart();
+    }
+
+    function removeFromCart(idx) {
+      cart.splice(idx, 1);
+      renderCart();
+    }
+
+    function renderCart() {
+      const container = document.getElementById("cartItemsList");
+      const totalSpan = document.getElementById("cartTotalPrice");
+      const paypalBox = document.getElementById("paypal-button-container");
+
+      if (cart.length === 0) {
+        container.innerHTML = `<p style="color:#64748b; font-size:13px;">Cart is empty. Add products from the catalog.</p>`;
+        totalSpan.textContent = "$0.00 USD";
+        paypalBox.innerHTML = "";
+        return;
+      }
+
+      let total = 0;
+      container.innerHTML = cart.map((item, idx) => {
+        total += item.price;
+        return `
+          <div class="cart-item">
+            <div>
+              <strong>${item.name}</strong><br>
+              <span style="color:#38bdf8;">$${item.price.toFixed(2)} USD</span>
+            </div>
+            <button onclick="removeFromCart(${idx})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:14px;">✕</button>
+          </div>
+        `;
+      }).join("");
+
+      totalSpan.textContent = `$${total.toFixed(2)} USD`;
+      initPayPalButton(total);
+    }
+
+    let paypalRendered = false;
+    function initPayPalButton(amount) {
+      const container = document.getElementById("paypal-button-container");
+      container.innerHTML = ""; // re-render with new amount
+
+      if (window.paypal) {
+        paypal.Buttons({
+          createOrder: async () => {
+            const res = await fetch("/api/checkout/create-order", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ amount: amount })
+            });
+            const order = await res.json();
+            return order.id;
+          },
+          onApprove: async (data) => {
+            const res = await fetch("/api/checkout/capture-order", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderID: data.orderID,
+                productName: cart.map(i => i.name).join(", "),
+                buyerEmail: user.email
+              })
+            });
+            const capture = await res.json();
+            if (capture.success) {
+              alert("🎉 Payment completed! Order placed successfully.");
+              cart = [];
+              renderCart();
+              loadOrders();
+            } else {
+              alert("Payment error: " + JSON.stringify(capture));
+            }
+          }
+        }).render("#paypal-button-container");
+      }
+    }
+    async function logout() {
+  localStorage.clear();
+  sessionStorage.clear();
+  try {
+    await fetch("/api/logout", { method: "POST" });
+  } catch (e) {}
+  window.location.replace("/login.html");
+}
+const totalAmount = cart.reduce((sum, item) => sum + item.price * item.qty, 0).toFixed(2);
+
+const res = await fetch("/api/paypal/create-order", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    amount: totalAmount,
+    productName: cart.map(i => i.name).join(", "),
+    buyerEmail: user.email
+  })
+});
+    async function loadOrders() {
+      try {
+        const res = await fetch(`/api/user/orders?email=${encodeURIComponent(user.email)}`);
+        const json = await res.json();
+        const list = document.getElementById("ordersList");
+        if (!json.data || json.data.length === 0) {
+          list.innerHTML = `<p style="color:#64748b; font-size:13px;">No past orders found.</p>`;
+          return;
+        }
+
+        list.innerHTML = json.data.map(o => `
+          <div class="order-item">
+            <div><strong>Order #${o.order_id}</strong> — $${o.amount.toFixed(2)}</div>
+            <div style="color:#94a3b8; margin: 2px 0;">${o.product_name}</div>
+            <div>
+              <span class="order-status ${o.delivery_status === 'DELIVERED' ? 'status-delivered' : 'status-transit'}">
+                ${o.delivery_status || 'IN_TRANSIT'}
+              </span>
+              <span style="color:#94a3b8; margin-left:6px;">${o.carrier || 'FEDEX'}: <code>${o.tracking_number || 'N/A'}</code></span>
+            </div>
+          </div>
+        `).join("");
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadOrders();
+  </script>
+</body>
+</html>
